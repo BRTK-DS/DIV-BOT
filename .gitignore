@@ -1,0 +1,8 @@
+private.py
+*/__pycache__/
+__pycache__
+banned_words.txt
+user_data.json
+user_profiles.json
+badge_data.json
+emoji.py
