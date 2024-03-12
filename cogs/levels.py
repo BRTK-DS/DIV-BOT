@@ -94,7 +94,7 @@ class levels(commands.Cog):
         self.cooldown_users.add(user_id)
         
     @discord.slash_command(description='Sprawdź swój poziom na serwerze.')
-    async def lewelek(self, ctx, user: discord.User = None):
+    async def poziom(self, ctx, user: discord.User = None):
         user = user or ctx.author
         user_id = str(user.id)
         
@@ -123,12 +123,12 @@ class levels(commands.Cog):
             embed.add_field(name=f'{progress_emoji} Postęp:', value=progress_bar, inline=False)
             embed.set_thumbnail(url=user.display_avatar.url)
             
-            await ctx.send(embed=embed)
+            await ctx.respond(embed=embed)
         else:
-            await ctx.send('Użytkownik nie został znaleziony w bazie.')
+            await ctx.respond('Użytkownik nie został znaleziony w bazie.')
             
     @discord.slash_command(description='Top 10 na serwerze!')
-    async def liderbordzik(self, ctx):
+    async def ranking(self, ctx):
         sorted_users = sorted(user_data.items(), key=lambda x: x[1]['level'], reverse=True)
         
         xp_emoji = discord.PartialEmoji(animated=True, name="xp", id="1170497037339476018")
@@ -147,7 +147,7 @@ class levels(commands.Cog):
                     inline=False
                     )
             except discord.errors.NotFound:
-                await ctx.send(f'{failed_emoji} Użytkownik nie znajduje się w bazie danych!')
+                await ctx.respond(f'{failed_emoji} Użytkownik nie znajduje się w bazie danych!')
                 
         embed.add_field(
                 name="========================================",
@@ -165,7 +165,18 @@ class levels(commands.Cog):
             )
             embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1155238879041962047/1170684183836897362/image.png?ex=6559ef9b&is=65477a9b&hm=0a3d0aec66ffe074ffa819d15e6e5d0beb2778d089ea180fdf54b6ba427821b3&")
 
-        await ctx.send(embed=embed)
+        await ctx.respond(embed=embed)
         
+    @discord.slash_command()
+    async def dodajxp(self, ctx, user: discord.User, xp_amount: int):
+        
+        user_id = str(user.id)
+        if user_id in user_data:
+            user_data[user_id]['xp'] += xp_amount
+            save_user_data()
+            await ctx.respond(f"{success_emoji}Dodano {xp_amount} XP użytkownikowi {user.mention}")
+        else:
+            await ctx.respond(f"{failed_emoji}Użytkownik nie został znaleziony w bazie.")
+           
 def setup(bot):
     bot.add_cog(levels(bot))
