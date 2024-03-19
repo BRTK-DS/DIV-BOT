@@ -1,5 +1,6 @@
 import discord
 import os
+import pymongo
 from private import *
 
 intents = discord.Intents.all()

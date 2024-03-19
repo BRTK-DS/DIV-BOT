@@ -1,6 +1,7 @@
 import discord
 from discord.ext import tasks, commands
 import json
+import pymongo
 import random
 from emoji import *
 
@@ -9,16 +10,20 @@ intents.messages = True
 intents.typing = False
 intents.presences = False
 
-try:
-    with open('user_data.json', 'r') as file:
-        user_data = json.load(file)
-except FileNotFoundError:
-    user_data = {}
+# try:
+#     with open('user_data.json', 'r') as file:
+#         user_data = json.load(file)
+# except FileNotFoundError:
+#     user_data = {}
     
-def save_user_data():
-    with open('user_data.json', 'w') as file:
-        json.dump(user_data, file, indent=4)
+# def save_user_data():
+#     with open('user_data.json', 'w') as file:
+#         json.dump(user_data, file, indent=4)
         
+client = pymongo.MongoClient("mongodb+srv://divbot:ilikepancakessomuch@cluster0.kexuzr2.mongodb.net")
+db = client["mydatabase"]
+collection = db["user"]
+
 class levels(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -26,9 +31,9 @@ class levels(commands.Cog):
         self.xp_task.start()
         
     def get_user_level_info(self, user_id):
-        user_id = str(user_id)
-        if user_id in user_data:
-            return user_data[user_id]
+        user_data = collection.find_one({"_id": user_id})
+        if user_data:
+            return user_data
         else:
             return {'level': 1, 'xp': 0}
         
@@ -58,31 +63,37 @@ class levels(commands.Cog):
         if user_id in self.cooldown_users:
             return
         
-        if user_id not in user_data:
-            user_data[user_id] = {'xp': 0, 'level': 1}
-            
-        user_data[user_id]['xp'] += random.randrange(5, 26)
+        user_data = collection.find_one_and_update(
+            {"_id": user_id},
+            {"$inc": {"xp": random.randrange(5, 26)}},
+            upsert=True,
+            return_document=pymongo.ReturnDocument.AFTER
+        )
         
-        if user_data[user_id]['xp'] >= user_data[user_id]['level'] * 100:
+        if user_data['xp'] >= user_data['level'] * 100:
+            new_level = user_data['level'] + 1
+            collection.update_one({"_id": user_id}, {"$set": {"level": new_level, "xp": 0}})
+            self.update_roles(message.author, new_level)
             user_data[user_id]['level'] += 1
             level = user_data[user_id]['level']
+            await message.channel.send(f'{message.author.mention} Gratuluję zdobycia {level} poziomu!')
             
-            if level >= 5:
+            if level == 5:
                 role_id = 1153058242474283178
                 role = message.guild.get_role(role_id)
                 await message.author.add_roles(role)
                 
-            if level >= 15:
+            if level == 15:
                 role_id = 1153059143133966446
                 role = message.guild.get_role(role_id)
                 await message.author.add_roles(role)
                 
-            if level >= 30:
+            if level == 30:
                 role_id = 1153059645770965053
                 role = message.guild.get_role(role_id)
                 await message.author.add_roles(role)
                 
-            if level >= 50:
+            if level == 50:
                 role_id = 1153059990496616599
                 role = message.guild.get_role(role_id)
                 await message.author.add_roles(role)
@@ -90,17 +101,17 @@ class levels(commands.Cog):
             user_data[user_id]['xp'] = 0
             await message.channel.send(f'{message.author.mention} Gratuluję zdobycia {level} poziomu!')
             
-        save_user_data()
         self.cooldown_users.add(user_id)
         
     @discord.slash_command(description='Sprawdź swój poziom na serwerze.')
     async def poziom(self, ctx, user: discord.User = None):
         user = user or ctx.author
         user_id = str(user.id)
+        user_data = collection.find_one({"_id": user_id})
         
         if user_id in user_data:
-            level = user_data[user_id]['level']
-            xp = user_data[user_id]['xp']
+            level = user_data['level']
+            xp = user_data['xp']
             xp_needed = level * 100
             progress = xp / xp_needed
             
@@ -129,6 +140,7 @@ class levels(commands.Cog):
             
     @discord.slash_command(description='Top 10 na serwerze!')
     async def ranking(self, ctx):
+        user_data = collection.find_one({"_id": user_id})
         sorted_users = sorted(user_data.items(), key=lambda x: x[1]['level'], reverse=True)
         
         xp_emoji = discord.PartialEmoji(animated=True, name="xp", id="1170497037339476018")
@@ -167,16 +179,16 @@ class levels(commands.Cog):
 
         await ctx.respond(embed=embed)
         
-    @discord.slash_command()
-    async def dodajxp(self, ctx, user: discord.User, xp_amount: int):
+    # @discord.slash_command()
+    # async def dodajxp(self, ctx, user: discord.User, xp_amount: int):
         
-        user_id = str(user.id)
-        if user_id in user_data:
-            user_data[user_id]['xp'] += xp_amount
-            save_user_data()
-            await ctx.respond(f"{success_emoji}Dodano {xp_amount} XP użytkownikowi {user.mention}")
-        else:
-            await ctx.respond(f"{failed_emoji}Użytkownik nie został znaleziony w bazie.")
+    #     user_id = str(user.id)
+    #     if user_id in user_data:
+    #         user_data[user_id]['xp'] += xp_amount
+    #         save_user_data()
+    #         await ctx.respond(f"{success_emoji}Dodano {xp_amount} XP użytkownikowi {user.mention}")
+    #     else:
+    #         await ctx.respond(f"{failed_emoji}Użytkownik nie został znaleziony w bazie.")
            
 def setup(bot):
     bot.add_cog(levels(bot))
